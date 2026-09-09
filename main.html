@@ -430,10 +430,8 @@ body {
 
 <script>
 // ============================================================
-// ГЛАВНЫЙ СКРИПТ
+// НАСТРОЙКИ
 // ============================================================
-
-// ----- НАСТРОЙКИ -----
 const defaultSettings = {
     gravity: 0.70,
     speed: 6,
@@ -465,193 +463,69 @@ function saveSettings() {
     }
 }
 
-// ----- АУДИО-ПЛЕЕР TOKYO DRIFT -----
-class TokyoDriftPlayer {
-    constructor() {
-        this.audioCtx = null;
-        this.isPlaying = false;
-        this.isMuted = settings.muted;
-        this.volume = settings.volume / 100;
-        this.currentNoteIndex = 0;
-        this.timeoutId = null;
-        this.notes = [];
-        this.gainNode = null;
-        this.bpm = 140;
-        this.isInitialized = false;
+// ============================================================
+// АУДИОПЛЕЕР (MP3)
+// ============================================================
+const audioPlayer = {
+    _audio: null,
+    _isPlaying: false,
+    _muted: settings.muted,
+    _volume: settings.volume,
 
-        this.scale = [
-            { note: 'G3', freq: 196.00 },
-            { note: 'A#3', freq: 233.08 },
-            { note: 'C4', freq: 261.63 },
-            { note: 'D4', freq: 293.66 },
-            { note: 'D#4', freq: 311.13 },
-            { note: 'F4', freq: 349.23 },
-            { note: 'G4', freq: 392.00 },
-            { note: 'A#4', freq: 466.16 },
-            { note: 'C5', freq: 523.25 },
-            { note: 'D5', freq: 587.33 },
-            { note: 'D#5', freq: 622.25 },
-            { note: 'F5', freq: 698.46 },
-            { note: 'G5', freq: 783.99 },
-        ];
-
-        this.initAudio();
-        this.createMelody();
-    }
-
-    initAudio() {
-        try {
-            if (!this.audioCtx) {
-                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                this.gainNode = this.audioCtx.createGain();
-                this.gainNode.gain.value = this.isMuted ? 0 : this.volume;
-                this.gainNode.connect(this.audioCtx.destination);
-                this.isInitialized = true;
-            }
-        } catch (e) {
-            console.warn('Web Audio API не поддерживается');
+    init() {
+        if (!this._audio) {
+            this._audio = new Audio('music.mp3');
+            this._audio.loop = true;
+            this._audio.volume = this._muted ? 0 : (this._volume / 100);
+            this._audio.load();
         }
-    }
-
-    createMelody() {
-        // Основной мотив Tokyo Drift
-        const riff = [
-            { note: 4, dur: 0.25 }, { note: 6, dur: 0.25 }, { note: 8, dur: 0.25 }, { note: 6, dur: 0.25 },
-            { note: 4, dur: 0.25 }, { note: 3, dur: 0.25 }, { note: 4, dur: 0.5 },
-            { note: 6, dur: 0.25 }, { note: 8, dur: 0.25 }, { note: 10, dur: 0.25 }, { note: 8, dur: 0.25 },
-            { note: 6, dur: 0.25 }, { note: 4, dur: 0.25 }, { note: 3, dur: 0.5 },
-            { note: 4, dur: 0.25 }, { note: 6, dur: 0.25 }, { note: 8, dur: 0.25 }, { note: 10, dur: 0.25 },
-            { note: 11, dur: 0.25 }, { note: 10, dur: 0.25 }, { note: 8, dur: 0.5 },
-            { note: 6, dur: 0.25 }, { note: 4, dur: 0.25 }, { note: 3, dur: 0.25 }, { note: 4, dur: 0.25 },
-            { note: 3, dur: 0.25 }, { note: 2, dur: 0.25 }, { note: 3, dur: 0.5 },
-        ];
-
-        this.notes = [];
-        for (let i = 0; i < riff.length; i++) {
-            this.notes.push({
-                index: riff[i].note,
-                duration: riff[i].dur,
-                velocity: 0.5 + Math.random() * 0.15,
-                isBass: false,
-            });
-            // Добавляем бас каждые 4 ноты
-            if (i % 4 === 0 && i < riff.length - 1) {
-                this.notes.push({
-                    index: Math.floor(i / 4) % 4,
-                    duration: 0.5,
-                    velocity: 0.7,
-                    isBass: true,
-                });
-            }
-        }
-    }
-
-    toggleMute() {
-        this.isMuted = !this.isMuted;
-        settings.muted = this.isMuted;
-        saveSettings();
-        if (this.gainNode) {
-            this.gainNode.gain.value = this.isMuted ? 0 : this.volume;
-        }
-        return this.isMuted;
-    }
-
-    setVolume(value) {
-        this.volume = value / 100;
-        settings.volume = value;
-        saveSettings();
-        if (this.gainNode && !this.isMuted) {
-            this.gainNode.gain.value = this.volume;
-        }
-    }
+    },
 
     play() {
-        if (!this.audioCtx) {
-            this.initAudio();
-        }
-        if (!this.audioCtx || this.notes.length === 0) return;
-
-        if (this.isPlaying) {
-            this.stop();
-        }
-
-        this.isPlaying = true;
-        this.currentNoteIndex = 0;
-        
-        if (this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume();
-        }
-
-        this.playNextNote();
-    }
-
-    playNextNote() {
-        if (!this.isPlaying || this.currentNoteIndex >= this.notes.length) {
-            if (this.isPlaying) {
-                this.currentNoteIndex = 0;
-                setTimeout(() => this.playNextNote(), 300);
-            }
-            return;
-        }
-
-        const note = this.notes[this.currentNoteIndex];
-        const beatDuration = 60 / this.bpm;
-        const noteDuration = beatDuration * (note.duration || 0.5);
-
-        this.playNote(note);
-
-        this.currentNoteIndex++;
-        this.timeoutId = setTimeout(() => {
-            this.playNextNote();
-        }, noteDuration * 1000);
-    }
-
-    playNote(note) {
-        try {
-            const oscillator = this.audioCtx.createOscillator();
-            const noteGain = this.audioCtx.createGain();
-
-            oscillator.connect(noteGain);
-            noteGain.connect(this.gainNode);
-
-            oscillator.type = note.isBass ? 'triangle' : 'sine';
-            
-            const scaleIndex = note.index % this.scale.length;
-            const freq = this.scale[scaleIndex].freq;
-            const finalFreq = note.isBass ? freq * 0.5 : freq;
-            
-            oscillator.frequency.setValueAtTime(finalFreq, this.audioCtx.currentTime);
-
-            const duration = (60 / this.bpm) * note.duration;
-            const startTime = this.audioCtx.currentTime;
-            const gainValue = note.velocity * 0.4;
-
-            noteGain.gain.setValueAtTime(0, startTime);
-            noteGain.gain.linearRampToValueAtTime(gainValue, startTime + 0.02);
-            noteGain.gain.setValueAtTime(gainValue * 0.6, startTime + duration * 0.7);
-            noteGain.gain.linearRampToValueAtTime(0, startTime + duration);
-
-            oscillator.start(startTime);
-            oscillator.stop(startTime + duration + 0.05);
-
-        } catch (e) {
-            console.warn('Ошибка воспроизведения:', e);
-        }
-    }
+        this.init();
+        if (!this._audio) return;
+        this._audio.currentTime = 0;
+        this._audio.play().then(() => {
+            this._isPlaying = true;
+        }).catch(e => {
+            console.warn('Не удалось воспроизвести музыку:', e);
+        });
+    },
 
     stop() {
-        this.isPlaying = false;
-        if (this.timeoutId) {
-            clearTimeout(this.timeoutId);
-            this.timeoutId = null;
+        if (this._audio) {
+            this._audio.pause();
+            this._isPlaying = false;
         }
+    },
+
+    toggleMute() {
+        this._muted = !this._muted;
+        settings.muted = this._muted;
+        saveSettings();
+        if (this._audio) {
+            this._audio.muted = this._muted;
+        }
+        return this._muted;
+    },
+
+    setVolume(value) {
+        this._volume = value;
+        settings.volume = value;
+        saveSettings();
+        if (this._audio) {
+            this._audio.volume = this._muted ? 0 : (value / 100);
+        }
+    },
+
+    isPlaying() {
+        return this._isPlaying;
     }
-}
+};
 
-// ----- ИНИЦИАЛИЗАЦИЯ ИГРЫ -----
-const musicPlayer = new TokyoDriftPlayer();
-
-// DOM элементы
+// ============================================================
+// ИГРОВЫЕ ПЕРЕМЕННЫЕ
+// ============================================================
 const game = document.getElementById('game');
 const player = document.getElementById('player');
 const scoreEl = document.getElementById('score');
@@ -665,7 +539,6 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const soundBtn = document.getElementById('soundBtn');
 
-// Элементы настроек
 const gravitySlider = document.getElementById('gravitySlider');
 const gravityValue = document.getElementById('gravityValue');
 const speedSlider = document.getElementById('speedSlider');
@@ -678,7 +551,6 @@ const settingsSaveBtn = document.getElementById('settingsSaveBtn');
 const settingsCancelBtn = document.getElementById('settingsCancelBtn');
 const resetDefaultsBtn = document.getElementById('resetDefaultsBtn');
 
-// ----- ПЕРЕМЕННЫЕ ИГРЫ -----
 let running = false;
 let score = 0;
 let best = Number(localStorage.getItem('teacherRunnerBest') || 0);
@@ -697,7 +569,9 @@ let currentWinScore = settings.winScore;
 
 bestEl.textContent = best;
 
-// ----- ФУНКЦИИ ИГРЫ -----
+// ============================================================
+// ФУНКЦИИ ОБНОВЛЕНИЯ UI
+// ============================================================
 function updateSoundButton() {
     if (settings.muted) {
         soundBtn.textContent = '🔇';
@@ -721,6 +595,9 @@ function updateSettingsUI() {
 }
 updateSettingsUI();
 
+// ============================================================
+// ИГРОВАЯ ЛОГИКА
+// ============================================================
 function jump() {
     if (!running || finalSequenceStarted) return;
     if (playerY <= 0.5) {
@@ -767,8 +644,9 @@ function startGame() {
     player.style.bottom = '5%';
     player.style.backgroundPosition = '0 0';
 
+    // Запуск музыки
     if (!settings.muted) {
-        musicPlayer.play();
+        audioPlayer.play();
     }
 
     lastTime = performance.now();
@@ -779,7 +657,7 @@ function gameOver() {
     running = false;
     cancelAnimationFrame(animationId);
     player.classList.remove('jumping');
-    musicPlayer.stop();
+    audioPlayer.stop();
 
     if (score > best) {
         best = score;
@@ -806,7 +684,7 @@ function finalGame() {
     cancelAnimationFrame(animationId);
     removeAllObstacles();
     player.classList.remove('jumping');
-    musicPlayer.stop();
+    audioPlayer.stop();
 
     if (score > best) {
         best = score;
@@ -899,8 +777,9 @@ function loop(now) {
     animationId = requestAnimationFrame(loop);
 }
 
-// ----- ОБРАБОТЧИКИ СОБЫТИЙ -----
-// Полноэкранный режим
+// ============================================================
+// ОБРАБОТЧИКИ СОБЫТИЙ
+// ============================================================
 fullscreenBtn.addEventListener('click', function(e) {
     e.stopPropagation();
     if (!document.fullscreenElement) {
@@ -914,7 +793,6 @@ document.addEventListener('fullscreenchange', function() {
     fullscreenBtn.textContent = document.fullscreenElement ? '×' : '⛶';
 });
 
-// Настройки
 settingsBtn.addEventListener('click', function(e) {
     e.stopPropagation();
     settingsOverlay.classList.add('active');
@@ -941,7 +819,7 @@ settingsSaveBtn.addEventListener('click', function() {
 
     gravity = newGravity;
     currentWinScore = newWinScore;
-    musicPlayer.setVolume(newVolume);
+    audioPlayer.setVolume(newVolume);
     
     if (!running) {
         speed = newSpeed;
@@ -963,36 +841,32 @@ resetDefaultsBtn.addEventListener('click', function() {
 
     gravity = defaultSettings.gravity;
     currentWinScore = defaultSettings.winScore;
-    musicPlayer.setVolume(defaultSettings.volume);
+    audioPlayer.setVolume(defaultSettings.volume);
     if (!running) {
         speed = defaultSettings.speed;
     }
     updateSoundButton();
 });
 
-// Закрытие настроек по клику вне карточки
 settingsOverlay.addEventListener('click', function(e) {
     if (e.target === settingsOverlay) {
         settingsOverlay.classList.remove('active');
     }
 });
 
-// Звук
 soundBtn.addEventListener('click', function(e) {
     e.stopPropagation();
-    const muted = musicPlayer.toggleMute();
+    const muted = audioPlayer.toggleMute();
     settings.muted = muted;
     saveSettings();
     updateSoundButton();
-    if (!muted && !musicPlayer.isPlaying && running) {
-        musicPlayer.play();
+    if (!muted && running && !audioPlayer.isPlaying()) {
+        audioPlayer.play();
     }
 });
 
-// Старт игры
 startBtn.addEventListener('click', startGame);
 
-// Клавиатура
 document.addEventListener('keydown', function(e) {
     if (e.code === 'Space' || e.code === 'ArrowUp') {
         e.preventDefault();
@@ -1007,7 +881,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// Клик по экрану
 game.addEventListener('pointerdown', function(e) {
     if (e.target.id === 'startBtn' || e.target.closest('#message')) return;
     if (e.target.closest('#settingsOverlay')) return;
@@ -1018,9 +891,9 @@ game.addEventListener('pointerdown', function(e) {
     }
 });
 
-// Активация аудио при первом клике
+// Инициализация аудио при первом клике
 document.addEventListener('click', function() {
-    musicPlayer.initAudio();
+    audioPlayer.init();
 }, { once: true });
 
 console.log('🎮 Игра загружена! Нажмите "Начать игру"');
