@@ -474,7 +474,7 @@ const audioPlayer = {
 
     init() {
         if (!this._audio) {
-            this._audio = new Audio('music.mp3');
+            this._audio = new Audio('/music.mp3');
             this._audio.loop = true;
             this._audio.volume = this._muted ? 0 : (this._volume / 100);
             this._audio.load();
